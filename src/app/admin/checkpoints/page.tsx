@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { QRCodeSVG } from "qrcode.react";
-import { Plus, Printer, QrCode } from "lucide-react";
+import { Pencil, Plus, Power, Printer, QrCode, Search, X } from "lucide-react";
 import type { Checkpoint, Location } from "@/lib/types";
 
 export default function CheckpointsPage() {
@@ -11,7 +11,10 @@ export default function CheckpointsPage() {
   const [checkpoints, setCheckpoints] = useState<(Checkpoint & { location?: Location })[]>([]);
   const [locations, setLocations] = useState<Location[]>([]);
   const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [printItem, setPrintItem] = useState<(Checkpoint & { location?: Location }) | null>(null);
+  const [search, setSearch] = useState("");
+  const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState({
     code: "",
     name: "",
@@ -26,35 +29,82 @@ export default function CheckpointsPage() {
   }, []);
 
   async function load() {
-    const [{ data: cps }, { data: locs }] = await Promise.all([
+    const [{ data: cps, error: checkpointsError }, { data: locs, error: locationsError }] = await Promise.all([
       supabase
         .from("checkpoints")
         .select("*, location:locations(*)")
         .order("code"),
       supabase.from("locations").select("*").eq("is_active", true),
     ]);
+    if (checkpointsError || locationsError) {
+      setError((checkpointsError ?? locationsError)?.message ?? "Não foi possível carregar os dados.");
+      return;
+    }
+    setError(null);
     setCheckpoints((cps as any) ?? []);
     setLocations(locs ?? []);
   }
 
-  async function createCheckpoint(e: React.FormEvent) {
+  function openCreate() {
+    setEditingId(null);
+    setForm({ code: "", name: "", location_id: "", target_lat: "", target_lng: "", gps_radius_meters: "30" });
+    setShowForm(true);
+  }
+
+  function openEdit(cp: Checkpoint) {
+    setEditingId(cp.id);
+    setForm({
+      code: cp.code,
+      name: cp.name,
+      location_id: cp.location_id,
+      target_lat: cp.target_lat?.toString() ?? "",
+      target_lng: cp.target_lng?.toString() ?? "",
+      gps_radius_meters: cp.gps_radius_meters.toString(),
+    });
+    setShowForm(true);
+  }
+
+  function closeForm() {
+    setShowForm(false);
+    setEditingId(null);
+  }
+
+  async function saveCheckpoint(e: React.FormEvent) {
     e.preventDefault();
-    const { error } = await supabase.from("checkpoints").insert({
+    const values = {
       code: form.code.toUpperCase(),
       name: form.name,
       location_id: form.location_id,
       target_lat: form.target_lat ? parseFloat(form.target_lat) : null,
       target_lng: form.target_lng ? parseFloat(form.target_lng) : null,
       gps_radius_meters: parseInt(form.gps_radius_meters) || 30,
-    });
-    if (!error) {
-      setShowForm(false);
-      setForm({ code: "", name: "", location_id: "", target_lat: "", target_lng: "", gps_radius_meters: "30" });
-      load();
-    } else {
-      alert(error.message);
+    };
+    const result = editingId
+      ? await supabase.from("checkpoints").update(values).eq("id", editingId)
+      : await supabase.from("checkpoints").insert(values);
+    if (result.error) {
+      setError(result.error.message);
+      return;
     }
+    closeForm();
+    load();
   }
+
+  async function toggleActive(cp: Checkpoint) {
+    const { error: updateError } = await supabase
+      .from("checkpoints")
+      .update({ is_active: !cp.is_active })
+      .eq("id", cp.id);
+    if (updateError) {
+      setError(updateError.message);
+      return;
+    }
+    load();
+  }
+
+  const filteredCheckpoints = checkpoints.filter((cp) =>
+    `${cp.code} ${cp.name} ${cp.location?.name ?? ""}`.toLowerCase().includes(search.toLowerCase())
+  );
 
   return (
     <div className="space-y-6">
@@ -63,14 +113,31 @@ export default function CheckpointsPage() {
           <h1 className="text-2xl font-bold text-white">Checkpoints</h1>
           <p className="text-gray-400 text-sm mt-1">Pontos de controle com QR Code e GPS</p>
         </div>
-        <button className="btn-primary flex items-center gap-2" onClick={() => setShowForm(true)}>
+        <button className="btn-primary flex items-center gap-2" onClick={openCreate}>
           <Plus className="w-4 h-4" /> Novo
         </button>
       </div>
+      <div className="relative max-w-md">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+        <input
+          className="input-field pl-9"
+          placeholder="Pesquisar checkpoints..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+      </div>
+      {error && (
+        <div className="bg-red-900/40 border border-red-700 text-red-200 text-sm rounded-xl px-4 py-3 flex items-center justify-between gap-3">
+          <span>{error}</span>
+          <button type="button" onClick={() => setError(null)} aria-label="Fechar erro">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
 
       {showForm && (
-        <form onSubmit={createCheckpoint} className="card space-y-4 max-w-lg">
-          <h3 className="font-semibold text-white">Novo checkpoint</h3>
+        <form onSubmit={saveCheckpoint} className="card space-y-4 max-w-lg">
+          <h3 className="font-semibold text-white">{editingId ? "Editar checkpoint" : "Novo checkpoint"}</h3>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-xs text-gray-400">Código</label>
@@ -106,33 +173,47 @@ export default function CheckpointsPage() {
           </div>
           <div className="flex gap-2">
             <button type="submit" className="btn-primary">Salvar</button>
-            <button type="button" className="btn-secondary" onClick={() => setShowForm(false)}>Cancelar</button>
+            <button type="button" className="btn-secondary" onClick={closeForm}>Cancelar</button>
           </div>
         </form>
       )}
 
       <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {checkpoints.map((cp) => (
-          <div key={cp.id} className="card">
+        {filteredCheckpoints.map((cp) => (
+          <div key={cp.id} className={`card ${!cp.is_active ? "opacity-70" : ""}`}>
             <div className="flex items-start justify-between">
               <div>
                 <div className="font-mono text-teal-400 font-bold">{cp.code}</div>
                 <div className="text-white font-medium mt-0.5">{cp.name}</div>
                 <div className="text-xs text-gray-400 mt-1">{(cp as any).location?.name}</div>
               </div>
-              <QrCode className="w-5 h-5 text-gray-500" />
+              <div className="flex items-center gap-2">
+                <span className={`status-badge ${cp.is_active ? "bg-green-900/50 text-green-300" : "bg-gray-700 text-gray-300"}`}>
+                  {cp.is_active ? "Ativo" : "Inativo"}
+                </span>
+                <QrCode className="w-5 h-5 text-gray-500" />
+              </div>
             </div>
             <div className="mt-3 text-xs text-gray-500">
               Raio: {cp.gps_radius_meters}m · Token: {cp.qr_code_token.slice(0, 12)}…
             </div>
-            <button
-              className="mt-3 btn-secondary w-full text-sm flex items-center justify-center gap-2 py-2"
-              onClick={() => setPrintItem(cp)}
-            >
-              <Printer className="w-4 h-4" /> Imprimir QR
-            </button>
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <button className="btn-secondary text-sm flex items-center justify-center gap-2 py-2" onClick={() => openEdit(cp)}>
+                <Pencil className="w-4 h-4" /> Editar
+              </button>
+              <button className="btn-secondary text-sm flex items-center justify-center gap-2 py-2" onClick={() => toggleActive(cp)}>
+                <Power className="w-4 h-4" /> {cp.is_active ? "Desativar" : "Ativar"}
+              </button>
+              <button
+                className="btn-secondary col-span-2 text-sm flex items-center justify-center gap-2 py-2"
+                onClick={() => setPrintItem(cp)}
+              >
+                <Printer className="w-4 h-4" /> Imprimir QR
+              </button>
+            </div>
           </div>
         ))}
+        {filteredCheckpoints.length === 0 && <p className="text-gray-500">Nenhum checkpoint encontrado</p>}
       </div>
 
       {/* Print modal */}

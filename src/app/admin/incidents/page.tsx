@@ -7,22 +7,30 @@ import { formatDateTime, statusLabel, severityLabel } from "@/lib/utils/format";
 export default function IncidentsPage() {
   const supabase = createClient();
   const [rows, setRows] = useState<any[]>([]);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     load();
   }, []);
 
   async function load() {
-    const { data } = await supabase
+    const { data, error: queryError } = await supabase
       .from("incidents")
-      .select("*, guard:profiles(full_name), checkpoint:checkpoints(code, name)")
+      .select("*, guard:profiles!incidents_guard_id_fkey(full_name), checkpoint:checkpoints(code, name)")
       .order("reported_at", { ascending: false });
+
+    if (queryError) {
+      setError(queryError.message);
+      return;
+    }
+
+    setError(null);
     setRows(data ?? []);
   }
 
   async function resolve(id: string) {
     const { data: { user } } = await supabase.auth.getUser();
-    await supabase
+    const { error: updateError } = await supabase
       .from("incidents")
       .update({
         status: "resolved",
@@ -30,12 +38,23 @@ export default function IncidentsPage() {
         resolved_by: user?.id,
       })
       .eq("id", id);
+
+    if (updateError) {
+      setError(updateError.message);
+      return;
+    }
+
     load();
   }
 
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold text-white">Ocorrências</h1>
+      {error && (
+        <div className="bg-red-900/40 border border-red-700 text-red-200 text-sm rounded-xl px-4 py-3">
+          Não foi possível carregar as ocorrências: {error}
+        </div>
+      )}
       <div className="space-y-3">
         {rows.map((r) => (
           <div key={r.id} className="card flex flex-col md:flex-row md:items-center gap-4">
