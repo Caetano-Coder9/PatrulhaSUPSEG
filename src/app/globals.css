@@ -1,0 +1,51 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --navy: #0a192f;
+  --teal: #0d9488;
+  --darkblue: #1e3a8a;
+}
+
+html,
+body {
+  height: 100%;
+  background-color: #0a192f;
+  color: #f8fafc;
+}
+
+/* Scrollbar discreta */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #0a192f;
+}
+::-webkit-scrollbar-thumb {
+  background: #1e3a8a;
+  border-radius: 4px;
+}
+
+/* Botões grandes para mobile */
+@layer components {
+  .btn-primary {
+    @apply bg-teal-600 hover:bg-teal-500 active:bg-teal-700 text-white font-semibold rounded-xl px-6 py-3.5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  .btn-secondary {
+    @apply bg-darkblue-800 hover:bg-darkblue-700 active:bg-darkblue-900 text-white font-semibold rounded-xl px-6 py-3.5 transition-colors border border-darkblue-600;
+  }
+  .btn-danger {
+    @apply bg-red-600 hover:bg-red-500 text-white font-semibold rounded-xl px-6 py-3.5 transition-colors;
+  }
+  .card {
+    @apply bg-[#0f2744] border border-[#1e3a5f] rounded-2xl p-4 shadow-lg;
+  }
+  .input-field {
+    @apply w-full bg-[#0a192f] border border-[#1e3a5f] rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-teal-600;
+  }
+  .status-badge {
+    @apply inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium;
+  }
+}
