@@ -12,8 +12,11 @@ import {
   AlertTriangle,
   BarChart3,
   LogOut,
+  Menu,
   Shield,
+  X,
 } from "lucide-react";
+import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils/cn";
 
@@ -36,6 +39,7 @@ export default function AdminLayout({
   const pathname = usePathname();
   const router = useRouter();
   const supabase = createClient();
+  const [menuOpen, setMenuOpen] = useState(false);
 
   async function logout() {
     await supabase.auth.signOut();
@@ -45,8 +49,16 @@ export default function AdminLayout({
 
   return (
     <div className="min-h-screen flex bg-navy">
+      {menuOpen && (
+        <button
+          type="button"
+          className="fixed inset-0 z-40 bg-black/60 lg:hidden"
+          aria-label="Fechar menu"
+          onClick={() => setMenuOpen(false)}
+        />
+      )}
       {/* Sidebar */}
-      <aside className="w-64 shrink-0 bg-[#06101f] border-r border-[#1e3a5f] flex flex-col">
+      <aside className={`fixed inset-y-0 left-0 z-50 w-64 shrink-0 bg-[#06101f] border-r border-[#1e3a5f] flex flex-col transition-transform lg:static lg:translate-x-0 ${menuOpen ? "translate-x-0" : "-translate-x-full"}`}>
         <div className="p-5 border-b border-[#1e3a5f] flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-teal-600 flex items-center justify-center">
             <Shield className="w-5 h-5 text-white" />
@@ -55,6 +67,9 @@ export default function AdminLayout({
             <div className="font-bold text-white text-sm">SUPSEGPatrulha</div>
             <div className="text-xs text-gray-400">Painel Admin</div>
           </div>
+          <button type="button" className="ml-auto text-gray-400 hover:text-white lg:hidden" onClick={() => setMenuOpen(false)} aria-label="Fechar menu">
+            <X className="w-5 h-5" />
+          </button>
         </div>
 
         <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
@@ -71,6 +86,7 @@ export default function AdminLayout({
                     ? "bg-teal-600/20 text-teal-400 border border-teal-700/40"
                     : "text-gray-300 hover:bg-[#0f2744] hover:text-white"
                 )}
+                onClick={() => setMenuOpen(false)}
               >
                 <Icon className="w-4.5 h-4.5 shrink-0" />
                 {item.label}
@@ -91,8 +107,13 @@ export default function AdminLayout({
       </aside>
 
       {/* Main */}
-      <main className="flex-1 overflow-auto">
-        <div className="p-6 lg:p-8 max-w-7xl mx-auto">{children}</div>
+      <main className="min-w-0 flex-1 overflow-auto">
+        <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto">
+          <button type="button" className="mb-4 inline-flex items-center gap-2 text-gray-300 hover:text-white lg:hidden" onClick={() => setMenuOpen(true)}>
+            <Menu className="w-5 h-5" /> Menu
+          </button>
+          {children}
+        </div>
       </main>
     </div>
   );

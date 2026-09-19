@@ -61,6 +61,11 @@ export default function IncidentsPage() {
             <div className="flex-1">
               <div className="font-semibold text-white">{r.title}</div>
               <div className="text-sm text-gray-400 mt-1">{r.description}</div>
+              {r.photo_url && (
+                <a href={r.photo_url} target="_blank" rel="noreferrer" className="inline-block mt-3">
+                  <img src={r.photo_url} alt="Foto da ocorrência" className="max-h-32 max-w-full rounded-lg object-cover" />
+                </a>
+              )}
               <div className="flex flex-wrap gap-2 mt-2 text-xs">
                 <span className="status-badge bg-gray-700 text-gray-300">
                   {r.guard?.full_name}

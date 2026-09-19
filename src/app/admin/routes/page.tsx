@@ -105,6 +105,16 @@ export default function RoutesPage() {
     setForm((current) => ({ ...current, checkpoint_ids }));
   }
 
+  function changeLocation(locationId: string) {
+    setForm((current) => ({
+      ...current,
+      location_id: locationId,
+      checkpoint_ids: current.checkpoint_ids.filter((checkpointId) =>
+        checkpoints.some((checkpoint) => checkpoint.id === checkpointId && checkpoint.location_id === locationId)
+      ),
+    }));
+  }
+
   async function save(e: React.FormEvent) {
     e.preventDefault();
     const values = {
@@ -123,6 +133,11 @@ export default function RoutesPage() {
     }
 
     const routeId = result.data.id;
+    const { data: previousCheckpoints } = await supabase
+      .from("route_checkpoints")
+      .select("checkpoint_id, sequence_order")
+      .eq("route_id", routeId)
+      .order("sequence_order");
     const { error: deleteError } = await supabase.from("route_checkpoints").delete().eq("route_id", routeId);
     if (deleteError) {
       setError(deleteError.message);
@@ -138,6 +153,11 @@ export default function RoutesPage() {
         }))
       );
       if (checkpointError) {
+        if (previousCheckpoints && previousCheckpoints.length > 0) {
+          await supabase.from("route_checkpoints").insert(
+            previousCheckpoints.map((checkpoint) => ({ route_id: routeId, ...checkpoint }))
+          );
+        }
         setError(checkpointError.message);
         return;
       }
@@ -189,7 +209,7 @@ export default function RoutesPage() {
           <h2 className="font-semibold text-white">{editingId ? "Editar rota" : "Nova rota"}</h2>
           <div className="grid md:grid-cols-2 gap-3">
             <input className="input-field" placeholder="Nome da rota" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
-            <select className="input-field" value={form.location_id} onChange={(e) => setForm({ ...form, location_id: e.target.value })} required>
+            <select className="input-field" value={form.location_id} onChange={(e) => changeLocation(e.target.value)} required>
               <option value="">Selecione o posto...</option>
               {locations.map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}
             </select>
@@ -200,7 +220,7 @@ export default function RoutesPage() {
           <div>
             <div className="text-sm font-medium text-white mb-2">Checkpoints da rota</div>
             <div className="space-y-2 max-h-56 overflow-y-auto">
-              {checkpoints.map((checkpoint) => {
+              {checkpoints.filter((checkpoint) => checkpoint.location_id === form.location_id).map((checkpoint) => {
                 const selectedIndex = form.checkpoint_ids.indexOf(checkpoint.id);
                 const selected = selectedIndex >= 0;
                 return (

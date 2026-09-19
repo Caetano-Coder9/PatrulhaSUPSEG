@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { db } from "@/lib/offline/db";
 import {
   enqueuePatrolLog,
+  completeQueuedPatrolSession,
   createClientEventId,
 } from "@/lib/offline/sync";
 import { validateGps, getCurrentPosition } from "@/lib/utils/geo";
@@ -37,8 +38,22 @@ export default function ScanPage() {
 
   async function loadActive() {
     if (!db) return;
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return;
+    const { data: currentProfile } = await supabase
+      .from("profiles")
+      .select("location_id")
+      .eq("id", user.id)
+      .single();
     const ar = await db.activeRoute.toArray();
-    if (ar[0]) setActive(ar[0]);
+    if (
+      ar[0]?.guardId === user.id &&
+      ar[0]?.locationId === currentProfile?.location_id
+    ) {
+      setActive(ar[0]);
+    }
   }
 
   async function startScanner() {
@@ -91,6 +106,11 @@ export default function ScanPage() {
   async function processScan(token: string) {
     if (!active) {
       setResult({ success: false, message: "Nenhuma ronda ativa. Inicie uma rota." });
+      return;
+    }
+
+    if (active.status === "completed") {
+      setResult({ success: true, message: "Esta ronda já foi concluída." });
       return;
     }
 
@@ -195,16 +215,39 @@ export default function ScanPage() {
 
     // Atualiza estado da rota
     const updatedCheckpoints = active.checkpoints.map((c: any) =>
-      c.id === cp.id
+      c.id === cp.id && logStatus === "completed" && gpsResult.isValid
         ? {
             ...c,
-            status: logStatus === "out_of_sequence" ? "out_of_sequence" : "scanned",
+            status: "scanned",
             scanned_at: log.scanned_at,
           }
         : c
     );
-    const newActive = { ...active, checkpoints: updatedCheckpoints };
+    const finished =
+      logStatus === "completed" &&
+      gpsResult.isValid &&
+      updatedCheckpoints.every((checkpoint: any) => checkpoint.status === "scanned");
+    const completedAt = finished ? new Date().toISOString() : undefined;
+    const newActive = {
+      ...active,
+      checkpoints: updatedCheckpoints,
+      status: finished ? "completed" : active.status,
+      completedAt,
+    };
+
+    if (finished && navigator.onLine && active.sessionId) {
+      const { error: sessionError } = await supabase
+        .from("patrol_sessions")
+        .update({ status: "completed", completed_at: completedAt })
+        .eq("id", active.sessionId);
+      if (sessionError) {
+        setResult({ success: false, message: sessionError.message });
+        return;
+      }
+    }
+
     if (db) await db.activeRoute.put(newActive);
+    if (finished && !navigator.onLine) await completeQueuedPatrolSession(newActive);
     setActive(newActive);
 
     // Feedback
@@ -214,8 +257,9 @@ export default function ScanPage() {
 
     setResult({
       success: true,
-      message:
-        logStatus === "out_of_sequence"
+      message: finished
+        ? "Ronda concluída. Todos os checkpoints foram registados com sucesso."
+        : logStatus === "out_of_sequence"
           ? `Registrado fora de sequência: ${cp.code} – ${cp.name}`
           : `Checkpoint ${cp.code} – ${cp.name} registrado!`,
       gpsStatus: gpsResult.status,
@@ -229,6 +273,26 @@ export default function ScanPage() {
       <div className="p-6 text-center space-y-4">
         <Camera className="w-12 h-12 text-gray-600 mx-auto" />
         <p className="text-gray-400">Inicie uma ronda na tela Início para escanear.</p>
+      </div>
+    );
+  }
+
+  if (active.status === "completed") {
+    return (
+      <div className="p-6 text-center space-y-4">
+        <CheckCircle2 className="w-16 h-16 text-green-400 mx-auto" />
+        <h1 className="text-xl font-bold text-white">Ronda concluída</h1>
+        <p className="text-gray-400">Todos os checkpoints foram registados com sucesso.</p>
+        <button
+          className="btn-primary w-full"
+          onClick={async () => {
+            if (db && active?.id) await db.activeRoute.delete(active.id);
+            setActive(null);
+            window.location.href = "/mobile/home";
+          }}
+        >
+          Voltar às rotas
+        </button>
       </div>
     );
   }

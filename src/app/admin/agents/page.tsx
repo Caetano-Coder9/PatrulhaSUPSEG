@@ -3,39 +3,49 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Pencil, Power, Search, X } from "lucide-react";
+import type { Location } from "@/lib/types";
 
 export default function AgentsPage() {
   const supabase = createClient();
   const [rows, setRows] = useState<any[]>([]);
+  const [locations, setLocations] = useState<Location[]>([]);
   const [editing, setEditing] = useState<any | null>(null);
   const [search, setSearch] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [form, setForm] = useState({ phone_number: "", shift_info: "" });
+  const [form, setForm] = useState({ phone_number: "", shift_info: "", location_id: "" });
 
   useEffect(() => {
     load();
   }, []);
 
   async function load() {
-    const { data, error: queryError } = await supabase.from("profiles").select("*").order("full_name");
-    if (queryError) {
-      setError(queryError.message);
+    const [{ data, error: profileError }, { data: locationData, error: locationError }] = await Promise.all([
+      supabase.from("profiles").select("*").order("full_name"),
+      supabase.from("locations").select("*").eq("is_active", true).order("name"),
+    ]);
+    if (profileError || locationError) {
+      setError(profileError?.message ?? locationError?.message ?? "Não foi possível carregar os dados.");
       return;
     }
     setError(null);
     setRows(data ?? []);
+    setLocations((locationData as Location[]) ?? []);
   }
 
   function openEdit(row: any) {
     setEditing(row);
-    setForm({ phone_number: row.phone_number ?? "", shift_info: row.shift_info ?? "" });
+    setForm({ phone_number: row.phone_number ?? "", shift_info: row.shift_info ?? "", location_id: row.location_id ?? "" });
   }
 
   async function saveEdit(e: React.FormEvent) {
     e.preventDefault();
     const { error: updateError } = await supabase
       .from("profiles")
-      .update({ phone_number: form.phone_number || null, shift_info: form.shift_info || null })
+      .update({
+        phone_number: form.phone_number || null,
+        shift_info: form.shift_info || null,
+        location_id: form.location_id || null,
+      })
       .eq("id", editing.id);
     if (updateError) {
       setError(updateError.message);
@@ -84,6 +94,12 @@ export default function AgentsPage() {
           <h2 className="font-semibold text-white">Editar perfil: {editing.full_name}</h2>
           <input className="input-field" placeholder="Telefone" value={form.phone_number} onChange={(e) => setForm({ ...form, phone_number: e.target.value })} />
           <input className="input-field" placeholder="Turno" value={form.shift_info} onChange={(e) => setForm({ ...form, shift_info: e.target.value })} />
+          <select className="input-field" value={form.location_id} onChange={(e) => setForm({ ...form, location_id: e.target.value })}>
+            <option value="">Sem posto atribuído</option>
+            {locations.map((location) => (
+              <option key={location.id} value={location.id}>{location.name}</option>
+            ))}
+          </select>
           <div className="flex gap-2"><button className="btn-primary" type="submit">Salvar</button><button className="btn-secondary" type="button" onClick={() => setEditing(null)}>Cancelar</button></div>
         </form>
       )}
@@ -95,7 +111,9 @@ export default function AgentsPage() {
               <th className="pb-3 pr-4">E-mail</th>
               <th className="pb-3 pr-4">Função</th>
               <th className="pb-3 pr-4">Telefone</th>
+              <th className="pb-3 pr-4">Posto</th>
               <th className="pb-3">Turno</th>
+              <th className="pb-3">Ações</th>
             </tr>
           </thead>
           <tbody>
@@ -109,6 +127,9 @@ export default function AgentsPage() {
                   </span>
                 </td>
                 <td className="py-3 pr-4 text-gray-400">{r.phone_number ?? "—"}</td>
+                <td className="py-3 pr-4 text-gray-400">
+                  {locations.find((location) => location.id === r.location_id)?.name ?? "Sem posto atribuído"}
+                </td>
                 <td className="py-3 text-gray-400">{r.shift_info ?? "—"}</td>
                 <td className="py-3">
                   <div className="flex gap-2">

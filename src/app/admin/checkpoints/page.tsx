@@ -219,7 +219,7 @@ export default function CheckpointsPage() {
       {/* Print modal */}
       {printItem && (
         <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4" onClick={() => setPrintItem(null)}>
-          <div className="bg-white text-black rounded-2xl p-8 max-w-sm w-full text-center print:shadow-none" onClick={(e) => e.stopPropagation()} id="qr-print">
+          <div className="bg-white text-black rounded-2xl p-8 max-w-sm max-h-[90vh] overflow-y-auto w-full text-center print:shadow-none" onClick={(e) => e.stopPropagation()} id="qr-print">
             <div className="text-sm font-semibold text-gray-600 mb-1">
               {(printItem as any).location?.name ?? "Posto"}
             </div>

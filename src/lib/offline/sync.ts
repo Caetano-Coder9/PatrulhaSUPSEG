@@ -2,7 +2,7 @@
 
 import { db, setMeta, getMeta } from "./db";
 import { createClient } from "@/lib/supabase/client";
-import type { LocalPatrolLog, LocalIncident } from "@/lib/types";
+import type { ActiveRouteState, LocalPatrolLog, LocalIncident } from "@/lib/types";
 import { v4 as uuidv4 } from "uuid";
 
 let isSyncing = false;
@@ -22,6 +22,46 @@ export async function enqueuePatrolLog(log: LocalPatrolLog) {
     retry_count: 0,
     status: "pending",
     created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  });
+}
+
+export async function enqueuePatrolSession(session: ActiveRouteState, userId: string) {
+  if (!db) return;
+  await db.syncQueue.add({
+    entity_type: "patrol_session",
+    client_event_id: session.clientSessionId,
+    operation: "insert",
+    payload: {
+      id: session.clientSessionId,
+      route_id: session.routeId,
+      guard_id: userId,
+      location_id: session.locationId,
+      started_at: session.startedAt,
+      status: session.status,
+      completed_at: session.completedAt ?? null,
+    },
+    retry_count: 0,
+    status: "pending",
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  });
+}
+
+export async function completeQueuedPatrolSession(session: ActiveRouteState) {
+  if (!db) return;
+  const item = await db.syncQueue
+    .where("client_event_id")
+    .equals(session.clientSessionId)
+    .first();
+  if (!item) return;
+  await db.syncQueue.update(item.id!, {
+    payload: {
+      ...item.payload,
+      status: "completed",
+      completed_at: session.completedAt ?? null,
+    },
+    status: "pending",
     updated_at: new Date().toISOString(),
   });
 }
@@ -74,6 +114,44 @@ export async function processSyncQueue(
           status: "processing",
           updated_at: new Date().toISOString(),
         });
+
+        if (item.entity_type === "patrol_session") {
+          const payload = item.payload as {
+            id: string;
+            route_id: string;
+            guard_id: string;
+            location_id: string;
+            started_at: string;
+            status: string;
+            completed_at: string | null;
+          };
+          const { error } = await supabase.from("patrol_sessions").upsert(
+            {
+              id: payload.id,
+              route_id: payload.route_id,
+              guard_id: payload.guard_id,
+              location_id: payload.location_id,
+              started_at: payload.started_at,
+              status: payload.status,
+              completed_at: payload.completed_at,
+            },
+            { onConflict: "id" }
+          );
+          if (error) throw error;
+
+          const pendingLogs = await db.syncQueue
+            .where("entity_type")
+            .equals("patrol_log")
+            .toArray();
+          for (const pendingLog of pendingLogs) {
+            const payload = pendingLog.payload as unknown as LocalPatrolLog;
+            if (payload.patrol_session_id === undefined) {
+              await db.syncQueue.update(pendingLog.id!, {
+                payload: { ...pendingLog.payload, patrol_session_id: payload.patrol_session_id ?? item.client_event_id },
+              });
+            }
+          }
+        }
 
         if (item.entity_type === "patrol_log") {
           const payload = item.payload as unknown as LocalPatrolLog;

@@ -27,6 +27,8 @@ export interface Profile {
   email: string;
   phone_number: string | null;
   role: UserRole;
+  location_id: string | null;
+  location?: Location;
   shift_info: string | null;
   is_active: boolean;
   created_at: string;
@@ -177,7 +179,7 @@ export interface LocalIncident {
 
 export interface SyncQueueItem {
   id?: number;
-  entity_type: "patrol_log" | "incident";
+  entity_type: "patrol_session" | "patrol_log" | "incident";
   client_event_id: string;
   operation: "insert";
   payload: Record<string, unknown>;
@@ -189,7 +191,10 @@ export interface SyncQueueItem {
 }
 
 export interface ActiveRouteState {
+  id: string;
+  guardId: string;
   sessionId: string | null;
+  clientSessionId: string;
   routeId: string;
   routeName: string;
   locationId: string;
@@ -207,4 +212,6 @@ export interface ActiveRouteState {
     scanned_at?: string;
   }>;
   startedAt: string;
+  status: SessionStatus;
+  completedAt?: string;
 }
