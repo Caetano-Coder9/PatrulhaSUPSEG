@@ -19,6 +19,21 @@ type ScanResult = {
   gpsStatus?: GpsStatus;
   distance?: number | null;
   checkpointName?: string;
+  diagnostic?: {
+    qrFound: boolean;
+    qrExpected: boolean;
+    currentCheckpoint: string;
+    receivedCheckpoint: string;
+    checkpointStatusAfter: string;
+    gpsValid: boolean | null;
+    gpsDistance: number | null;
+    gpsRadius: number | null;
+    targetLat: number | null;
+    targetLng: number | null;
+    currentLat: number | null;
+    currentLng: number | null;
+    reason?: string;
+  };
 };
 
 export default function ScanPage() {
@@ -122,6 +137,11 @@ export default function ScanPage() {
       return;
     }
 
+    const expected = active.checkpoints.find((c: any) => c.status === "pending");
+    const currentCheckpoint = expected
+      ? `${expected.code} (${expected.id})`
+      : "Nenhum checkpoint pendente";
+
     // Encontra checkpoint pelo token na rota ativa
     const cp = active.checkpoints.find(
       (c: any) => c.qr_code_token === token
@@ -132,21 +152,52 @@ export default function ScanPage() {
       setResult({
         success: false,
         message: "QR Code não pertence à rota atual ou é inválido.",
+        diagnostic: {
+          qrFound: false,
+          qrExpected: false,
+          currentCheckpoint,
+          receivedCheckpoint: `Token não encontrado (${token})`,
+          checkpointStatusAfter: "Sem alteração",
+          gpsValid: null,
+          gpsDistance: null,
+          gpsRadius: null,
+          targetLat: null,
+          targetLng: null,
+          currentLat: null,
+          currentLng: null,
+          reason: "QR Code não encontrado na rota activa.",
+        },
       });
       return;
     }
+
+    const qrExpected = expected?.id === cp.id;
 
     if (cp.status === "scanned" || cp.status === "out_of_sequence") {
       setResult({
         success: false,
         message: `Checkpoint ${cp.code} já foi escaneado nesta ronda.`,
         checkpointName: cp.name,
+        diagnostic: {
+          qrFound: true,
+          qrExpected,
+          currentCheckpoint,
+          receivedCheckpoint: `${cp.code} (${cp.id})`,
+          checkpointStatusAfter: cp.status,
+          gpsValid: null,
+          gpsDistance: null,
+          gpsRadius: cp.gps_radius_meters,
+          targetLat: cp.target_lat,
+          targetLng: cp.target_lng,
+          currentLat: null,
+          currentLng: null,
+          reason: "Checkpoint já processado anteriormente.",
+        },
       });
       return;
     }
 
     // Sequência
-    const expected = active.checkpoints.find((c: any) => c.status === "pending");
     let logStatus: LogStatus = "completed";
     if (expected && expected.id !== cp.id) {
       logStatus = "out_of_sequence";
@@ -235,6 +286,31 @@ export default function ScanPage() {
       completedAt,
     };
 
+    const checkpointStatusAfter =
+      logStatus === "completed" && gpsResult.isValid ? "scanned" : cp.status;
+    const diagnostic = {
+      qrFound: true,
+      qrExpected,
+      currentCheckpoint,
+      receivedCheckpoint: `${cp.code} (${cp.id})`,
+      checkpointStatusAfter,
+      gpsValid: gpsResult.isValid,
+      gpsDistance: gpsResult.distanceMeters,
+      gpsRadius: cp.gps_radius_meters,
+      targetLat: cp.target_lat,
+      targetLng: cp.target_lng,
+      currentLat: scannedLat,
+      currentLng: scannedLng,
+      reason:
+        logStatus !== "completed"
+          ? "QR válido, mas fora da sequência esperada."
+          : !gpsResult.isValid
+            ? `GPS inválido: ${gpsResult.status}.`
+            : finished
+              ? "Checkpoint concluído e ronda finalizada."
+              : "Checkpoint concluído; próximo checkpoint continua pendente.",
+    };
+
     if (finished && navigator.onLine && active.sessionId) {
       const { error: sessionError } = await supabase
         .from("patrol_sessions")
@@ -265,6 +341,7 @@ export default function ScanPage() {
       gpsStatus: gpsResult.status,
       distance: gpsResult.distanceMeters,
       checkpointName: cp.name,
+      diagnostic,
     });
   }
 
@@ -352,6 +429,20 @@ export default function ScanPage() {
                   <MapPin className="w-3 h-3" />
                   GPS: {result.gpsStatus}
                   {result.distance != null && ` · ${result.distance}m`}
+                </div>
+              )}
+              {result.diagnostic && (
+                <div className="mt-3 space-y-1 text-xs text-gray-300 border-t border-[#1e3a5f] pt-3">
+                  <div>QR encontrado: <strong>{result.diagnostic.qrFound ? "SIM" : "NÃO"}</strong></div>
+                  <div>QR esperado: <strong>{result.diagnostic.qrExpected ? "SIM" : "NÃO"}</strong></div>
+                  <div>Checkpoint actual antes: {result.diagnostic.currentCheckpoint}</div>
+                  <div>Checkpoint recebido: {result.diagnostic.receivedCheckpoint}</div>
+                  <div>Status depois: <strong>{result.diagnostic.checkpointStatusAfter}</strong></div>
+                  <div>GPS válido: <strong>{result.diagnostic.gpsValid == null ? "NÃO AVALIADO" : result.diagnostic.gpsValid ? "SIM" : "NÃO"}</strong></div>
+                  <div>GPS: {result.diagnostic.gpsDistance ?? "—"}m / raio {result.diagnostic.gpsRadius ?? "—"}m</div>
+                  <div>Alvo: {result.diagnostic.targetLat ?? "—"}, {result.diagnostic.targetLng ?? "—"}</div>
+                  <div>Actual: {result.diagnostic.currentLat ?? "—"}, {result.diagnostic.currentLng ?? "—"}</div>
+                  {result.diagnostic.reason && <div>Motivo: {result.diagnostic.reason}</div>}
                 </div>
               )}
             </div>
