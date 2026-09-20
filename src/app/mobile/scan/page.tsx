@@ -26,6 +26,7 @@ type ScanResult = {
     receivedCheckpoint: string;
     checkpointStatusAfter: string;
     gpsValid: boolean | null;
+    gpsAccuracy: number | null;
     gpsDistance: number | null;
     gpsRadius: number | null;
     targetLat: number | null;
@@ -159,6 +160,7 @@ export default function ScanPage() {
           receivedCheckpoint: `Token não encontrado (${token})`,
           checkpointStatusAfter: "Sem alteração",
           gpsValid: null,
+          gpsAccuracy: null,
           gpsDistance: null,
           gpsRadius: null,
           targetLat: null,
@@ -185,6 +187,7 @@ export default function ScanPage() {
           receivedCheckpoint: `${cp.code} (${cp.id})`,
           checkpointStatusAfter: cp.status,
           gpsValid: null,
+          gpsAccuracy: null,
           gpsDistance: null,
           gpsRadius: cp.gps_radius_meters,
           targetLat: cp.target_lat,
@@ -238,6 +241,10 @@ export default function ScanPage() {
           status: "unavailable",
         };
       }
+    }
+
+    if (logStatus === "completed" && !gpsResult.isValid) {
+      logStatus = "missed";
     }
 
     const clientEventId = createClientEventId();
@@ -295,6 +302,7 @@ export default function ScanPage() {
       receivedCheckpoint: `${cp.code} (${cp.id})`,
       checkpointStatusAfter,
       gpsValid: gpsResult.isValid,
+      gpsAccuracy: accuracy,
       gpsDistance: gpsResult.distanceMeters,
       gpsRadius: cp.gps_radius_meters,
       targetLat: cp.target_lat,
@@ -302,9 +310,9 @@ export default function ScanPage() {
       currentLat: scannedLat,
       currentLng: scannedLng,
       reason:
-        logStatus !== "completed"
+        logStatus === "out_of_sequence"
           ? "QR válido, mas fora da sequência esperada."
-          : !gpsResult.isValid
+          : logStatus === "missed"
             ? `GPS inválido: ${gpsResult.status}.`
             : finished
               ? "Checkpoint concluído e ronda finalizada."
@@ -332,11 +340,13 @@ export default function ScanPage() {
     }
 
     setResult({
-      success: true,
+      success: logStatus === "completed" && gpsResult.isValid,
       message: finished
         ? "Ronda concluída. Todos os checkpoints foram registados com sucesso."
         : logStatus === "out_of_sequence"
           ? `Registrado fora de sequência: ${cp.code} – ${cp.name}`
+          : logStatus === "missed"
+            ? `Checkpoint não concluído: GPS ${gpsResult.status}. Tente novamente.`
           : `Checkpoint ${cp.code} – ${cp.name} registrado!`,
       gpsStatus: gpsResult.status,
       distance: gpsResult.distanceMeters,
@@ -439,6 +449,7 @@ export default function ScanPage() {
                   <div>Checkpoint recebido: {result.diagnostic.receivedCheckpoint}</div>
                   <div>Status depois: <strong>{result.diagnostic.checkpointStatusAfter}</strong></div>
                   <div>GPS válido: <strong>{result.diagnostic.gpsValid == null ? "NÃO AVALIADO" : result.diagnostic.gpsValid ? "SIM" : "NÃO"}</strong></div>
+                  <div>Precisão reportada: <strong>{result.diagnostic.gpsAccuracy == null ? "—" : `${result.diagnostic.gpsAccuracy}m`}</strong> (limite 50m)</div>
                   <div>GPS: {result.diagnostic.gpsDistance ?? "—"}m / raio {result.diagnostic.gpsRadius ?? "—"}m</div>
                   <div>Alvo: {result.diagnostic.targetLat ?? "—"}, {result.diagnostic.targetLng ?? "—"}</div>
                   <div>Actual: {result.diagnostic.currentLat ?? "—"}, {result.diagnostic.currentLng ?? "—"}</div>
