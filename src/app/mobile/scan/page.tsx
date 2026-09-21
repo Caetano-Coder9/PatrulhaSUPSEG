@@ -268,9 +268,6 @@ export default function ScanPage() {
       created_at: new Date().toISOString(),
     };
 
-    // Salva offline + fila
-    await enqueuePatrolLog(log);
-
     // Atualiza estado da rota
     const updatedCheckpoints = active.checkpoints.map((c: any) =>
       c.id === cp.id && logStatus === "completed" && gpsResult.isValid
@@ -319,26 +316,34 @@ export default function ScanPage() {
               : "Checkpoint concluído; próximo checkpoint continua pendente.",
     };
 
-    if (finished && navigator.onLine && active.sessionId) {
-      const { error: sessionError } = await supabase
-        .from("patrol_sessions")
-        .update({ status: "completed", completed_at: completedAt })
-        .eq("id", active.sessionId);
-      if (sessionError) {
-        setResult({ success: false, message: sessionError.message });
-        return;
-      }
-    }
-
-    if (db) {
-      if (finished && active.id) {
-        await db.activeRoute.delete(active.id);
-      } else {
-        await db.activeRoute.put(newActive);
-      }
-    }
-    if (finished && !navigator.onLine) await completeQueuedPatrolSession(newActive);
+    // Atualiza a UI imediatamente; persistência e sincronização seguem em segundo plano.
     setActive(newActive);
+
+    void (async () => {
+      await enqueuePatrolLog(log);
+
+      if (finished && navigator.onLine && active.sessionId) {
+        const { error: sessionError } = await supabase
+          .from("patrol_sessions")
+          .update({ status: "completed", completed_at: completedAt })
+          .eq("id", active.sessionId);
+        if (sessionError) throw sessionError;
+      }
+
+      if (finished && !navigator.onLine) {
+        await completeQueuedPatrolSession(newActive);
+      }
+
+      if (db) {
+        if (finished && active.id) {
+          await db.activeRoute.delete(active.id);
+        } else {
+          await db.activeRoute.put(newActive);
+        }
+      }
+    })().catch((error) => {
+      console.error("Falha ao persistir o resultado do scan", error);
+    });
 
     // Feedback
     if (navigator.vibrate) {
