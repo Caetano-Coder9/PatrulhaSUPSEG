@@ -182,16 +182,49 @@ export default function MobileHome() {
       </div>
 
       {active && (
-        <div className="card border-teal-700/50">
-          <div className="flex items-center gap-2 text-teal-400 text-sm font-medium mb-2">
-            <Play className="w-4 h-4" /> Ronda em andamento
+        <div
+          className={`card ${
+            active?.checkpoints?.filter(
+              (c: any) => c.status === "scanned" || c.status === "out_of_sequence"
+            ).length === (active?.checkpoints?.length ?? 0) && (active?.checkpoints?.length ?? 0) > 0
+              ? "border-teal-500 bg-teal-950/30"
+              : "border-teal-700/50"
+          }`}
+        >
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2 text-teal-400 text-sm font-medium">
+              {(active?.checkpoints?.filter(
+                (c: any) => c.status === "scanned" || c.status === "out_of_sequence"
+              ).length === (active?.checkpoints?.length ?? 0) && (active?.checkpoints?.length ?? 0) > 0) ? (
+                <>
+                  <CheckCircle2 className="w-4 h-4 text-teal-400" /> Todos os pontos escaneados
+                </>
+              ) : (
+                <>
+                  <Play className="w-4 h-4" /> Ronda em andamento
+                </>
+              )}
+            </div>
+            <span className="text-xs text-teal-300 font-semibold">
+              {active?.checkpoints?.filter(
+                (c: any) => c.status === "scanned" || c.status === "out_of_sequence"
+              ).length ?? 0}
+              /{active?.checkpoints?.length ?? 0}
+            </span>
           </div>
           <div className="font-semibold text-white">{active.routeName}</div>
           <div className="text-xs text-gray-400 mt-1 flex items-center gap-1">
             <MapPin className="w-3 h-3" /> {active.locationName}
           </div>
-          <button className="btn-primary w-full mt-4" onClick={() => router.push("/mobile/scan")}>
-            Continuar escaneamento
+          <button
+            className="btn-primary w-full mt-4 flex items-center justify-center gap-2"
+            onClick={() => router.push("/mobile/scan")}
+          >
+            {(active?.checkpoints?.filter(
+              (c: any) => c.status === "scanned" || c.status === "out_of_sequence"
+            ).length === (active?.checkpoints?.length ?? 0) && (active?.checkpoints?.length ?? 0) > 0)
+              ? "Ver e Terminar Ronda"
+              : "Continuar escaneamento"}
           </button>
         </div>
       )}

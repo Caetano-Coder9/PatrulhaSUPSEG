@@ -54,16 +54,36 @@ export async function completeQueuedPatrolSession(session: ActiveRouteState) {
     .where("client_event_id")
     .equals(session.clientSessionId)
     .first();
-  if (!item) return;
-  await db.syncQueue.update(item.id!, {
-    payload: {
-      ...item.payload,
-      status: "completed",
-      completed_at: session.completedAt ?? null,
-    },
-    status: "pending",
-    updated_at: new Date().toISOString(),
-  });
+  if (item) {
+    await db.syncQueue.update(item.id!, {
+      payload: {
+        ...item.payload,
+        status: "completed",
+        completed_at: session.completedAt ?? new Date().toISOString(),
+      },
+      status: "pending",
+      updated_at: new Date().toISOString(),
+    });
+  } else {
+    await db.syncQueue.add({
+      entity_type: "patrol_session",
+      client_event_id: session.clientSessionId,
+      operation: "insert",
+      payload: {
+        id: session.sessionId || session.clientSessionId,
+        route_id: session.routeId,
+        guard_id: session.guardId,
+        location_id: session.locationId,
+        started_at: session.startedAt,
+        status: "completed",
+        completed_at: session.completedAt ?? new Date().toISOString(),
+      },
+      retry_count: 0,
+      status: "pending",
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    });
+  }
 }
 
 export async function enqueueIncident(incident: LocalIncident) {
