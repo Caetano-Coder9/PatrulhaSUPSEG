@@ -137,7 +137,6 @@ export default function MobileHome() {
     };
 
     if (db) {
-      await db.activeRoute.clear();
       await db.activeRoute.put(state);
       if (!navigator.onLine) await enqueuePatrolSession(state, user.id);
     }

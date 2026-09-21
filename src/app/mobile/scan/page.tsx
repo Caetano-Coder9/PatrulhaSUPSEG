@@ -330,7 +330,13 @@ export default function ScanPage() {
       }
     }
 
-    if (db) await db.activeRoute.put(newActive);
+    if (db) {
+      if (finished && active.id) {
+        await db.activeRoute.delete(active.id);
+      } else {
+        await db.activeRoute.put(newActive);
+      }
+    }
     if (finished && !navigator.onLine) await completeQueuedPatrolSession(newActive);
     setActive(newActive);
 
