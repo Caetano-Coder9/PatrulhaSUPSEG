@@ -93,17 +93,17 @@ export default function AdminLayout({
               </Link>
             );
           })}
-        </nav>
 
-        <div className="p-3 border-t border-[#1e3a5f]">
-          <button
-            onClick={logout}
-            className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm text-gray-400 hover:bg-red-900/30 hover:text-red-300 transition-colors"
-          >
-            <LogOut className="w-4.5 h-4.5" />
-            Sair
-          </button>
-        </div>
+          <div className="pt-2 mt-2 border-t border-[#1e3a5f]">
+            <button
+              onClick={logout}
+              className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm font-medium text-gray-300 hover:bg-red-900/30 hover:text-red-300 transition-colors"
+            >
+              <LogOut className="w-4.5 h-4.5 shrink-0 text-red-400" />
+              Terminar sessão
+            </button>
+          </div>
+        </nav>
       </aside>
 
       {/* Main */}

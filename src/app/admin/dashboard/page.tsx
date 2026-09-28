@@ -11,6 +11,8 @@ import {
   Clock,
   CheckCircle2,
   XCircle,
+  Trash2,
+  RotateCcw,
 } from "lucide-react";
 import { formatDateTime, statusLabel } from "@/lib/utils/format";
 import type { PatrolLog, Incident } from "@/lib/types";
@@ -28,6 +30,11 @@ export default function AdminDashboard() {
     (PatrolLog & { checkpoint?: { code: string; name: string }; guard?: { full_name: string } })[]
   >([]);
   const [incidents, setIncidents] = useState<Incident[]>([]);
+
+  function clearDashboardHistory() {
+    setLiveLogs([]);
+    setIncidents([]);
+  }
 
   useEffect(() => {
     loadStats();
@@ -131,11 +138,39 @@ export default function AdminDashboard() {
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-2xl font-bold text-white">Dashboard</h1>
-        <p className="text-gray-400 text-sm mt-1">
-          Visão geral em tempo real das operações
-        </p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-white">Dashboard</h1>
+          <p className="text-gray-400 text-sm mt-1">
+            Visão geral em tempo real das operações
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          {liveLogs.length > 0 || incidents.length > 0 ? (
+            <button
+              type="button"
+              onClick={clearDashboardHistory}
+              className="btn-secondary text-xs sm:text-sm py-2 px-3.5 flex items-center gap-2 text-gray-300 hover:text-red-300 hover:border-red-700/50 transition-colors"
+              title="Limpar histórico visível apenas nesta tela"
+            >
+              <Trash2 className="w-4 h-4 text-red-400" />
+              Limpar histórico da tela
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => {
+                loadLiveFeed();
+                loadIncidents();
+              }}
+              className="btn-secondary text-xs sm:text-sm py-2 px-3.5 flex items-center gap-2 text-gray-300 hover:text-teal-300 hover:border-teal-700/50 transition-colors"
+              title="Recarregar histórico nesta tela"
+            >
+              <RotateCcw className="w-4 h-4 text-teal-400" />
+              Recarregar histórico
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Stats */}
@@ -157,9 +192,22 @@ export default function AdminDashboard() {
       <div className="grid lg:grid-cols-3 gap-6">
         {/* Live feed */}
         <div className="lg:col-span-2 card">
-          <div className="flex items-center gap-2 mb-4">
-            <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-            <h2 className="font-semibold text-white">Feed de auditoria em tempo real</h2>
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+              <h2 className="font-semibold text-white">Feed de auditoria em tempo real</h2>
+            </div>
+            {liveLogs.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setLiveLogs([])}
+                className="text-xs text-gray-400 hover:text-red-300 flex items-center gap-1 transition-colors px-2 py-1 rounded-lg hover:bg-red-950/30"
+                title="Limpar feed visível nesta tela"
+              >
+                <Trash2 className="w-3.5 h-3.5 text-red-400" />
+                Limpar
+              </button>
+            )}
           </div>
           <div className="space-y-2 max-h-[480px] overflow-y-auto">
             {liveLogs.length === 0 && (
@@ -206,10 +254,23 @@ export default function AdminDashboard() {
 
         {/* Incidents */}
         <div className="card">
-          <h2 className="font-semibold text-white mb-4 flex items-center gap-2">
-            <AlertTriangle className="w-4 h-4 text-yellow-400" />
-            Ocorrências recentes
-          </h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="font-semibold text-white flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 text-yellow-400" />
+              Ocorrências recentes
+            </h2>
+            {incidents.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setIncidents([])}
+                className="text-xs text-gray-400 hover:text-red-300 flex items-center gap-1 transition-colors px-2 py-1 rounded-lg hover:bg-red-950/30"
+                title="Limpar ocorrências visíveis nesta tela"
+              >
+                <Trash2 className="w-3.5 h-3.5 text-red-400" />
+                Limpar
+              </button>
+            )}
+          </div>
           <div className="space-y-3 max-h-[480px] overflow-y-auto">
             {incidents.length === 0 && (
               <p className="text-gray-500 text-sm py-6 text-center">Nenhuma ocorrência</p>
